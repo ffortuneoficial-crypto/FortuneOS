@@ -122,7 +122,11 @@ class MainActivity : AppCompatActivity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
         }
-        launchIntent(intent, "No se pudo abrir el selector de archivos.")
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, "No se encontró un selector de archivos.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showAppDrawer() {
@@ -130,7 +134,7 @@ class MainActivity : AppCompatActivity() {
         val apps = packageManager.queryIntentActivities(query, 0)
             .filter { it.activityInfo.packageName != packageName }
             .distinctBy { it.activityInfo.packageName }
-            .sortedBy { it.loadLabel(packageManager).toString().lowercase(Locale.getDefault()) }
+             .sortedWith(compareByDescending<android.content.pm.ResolveInfo> { getSharedPreferences("fortuneos_usage", MODE_PRIVATE).getInt("use_" + it.activityInfo.packageName, 0) }.thenBy { it.loadLabel(packageManager).toString().lowercase(Locale.getDefault()) })
         if (apps.isEmpty()) {
             Toast.makeText(this, "No se encontraron aplicaciones.", Toast.LENGTH_SHORT).show()
             return
@@ -172,6 +176,9 @@ class MainActivity : AppCompatActivity() {
                 row.addView(icon)
                 row.addView(label, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
                 row.setOnClickListener {
+                    val usage = getSharedPreferences("fortuneos_usage", MODE_PRIVATE)
+                    val key = "use_" + item.activityInfo.packageName
+                    usage.edit().putInt(key, usage.getInt(key, 0) + 1).apply()
                     val launch = packageManager.getLaunchIntentForPackage(item.activityInfo.packageName)
                     if (launch != null) launchIntent(launch, "No se pudo abrir esa aplicación.")
                     dialog.dismiss()
@@ -208,7 +215,7 @@ class FortuneView(context: Context) : View(context) {
     private var downY = 0f
 
     init {
-        repeat(58) { particles.add(Particle()) }
+        repeat(22) { particles.add(Particle()) }
         updateBattery()
         isClickable = true
         contentDescription = "FortuneOS. Desliza hacia arriba para abrir las aplicaciones."
