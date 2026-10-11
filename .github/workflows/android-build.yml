@@ -54,7 +54,20 @@ jobs:
               ".gradle", ".cg", ".idea", ".git", "build", ".kotlin", "*.iml",
               "local.properties", "*.log"
           ))
+          # The ZIP references @style/Fortune but does not define it.
+          # Add a compatibility theme to the extracted copy used for building.
+          values = destination / "app" / "src" / "main" / "res" / "values"
+          values.mkdir(parents=True, exist_ok=True)
+          compatibility = values / "fortune_compat.xml"
+          compatibility.write_text(
+              '<?xml version="1.0" encoding="utf-8"?>\n'
+              '<resources>\n'
+              '    <style name="Fortune" parent="Theme.Material3.DayNight.NoActionBar" />\n'
+              '</resources>\n',
+              encoding="utf-8"
+          )
           print(f"Prepared project from archive: {project}")
+          print("Added missing @style/Fortune compatibility resource")
           print(f"Project files: {sum(1 for p in destination.rglob('*') if p.is_file())}")
           PY
 
