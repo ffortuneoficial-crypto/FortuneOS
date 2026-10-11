@@ -48,12 +48,25 @@ jobs:
               sys.exit("ZIP does not contain a Gradle Android project with app/build.gradle.kts")
           project = candidates[0]
           destination = pathlib.Path("extracted-project/FortuneOS")
+          # Preserve tracked source edits before refreshing the extracted project from the ZIP.
+          overlay_backup = pathlib.Path("/tmp/fortuneos-overlay")
+          shutil.rmtree(overlay_backup, ignore_errors=True)
+          if destination.is_dir():
+              shutil.copytree(destination, overlay_backup, ignore=shutil.ignore_patterns(
+                  ".gradle", ".cg", ".idea", ".git", "build", ".kotlin",
+                  "local.properties", "*.log"
+              ))
           shutil.rmtree(destination, ignore_errors=True)
           destination.parent.mkdir(parents=True, exist_ok=True)
           shutil.copytree(project, destination, ignore=shutil.ignore_patterns(
               ".gradle", ".cg", ".idea", ".git", "build", ".kotlin", "*.iml",
               "local.properties", "*.log"
           ))
+          if overlay_backup.is_dir():
+              shutil.copytree(overlay_backup, destination, dirs_exist_ok=True, ignore=shutil.ignore_patterns(
+                  ".gradle", ".cg", ".idea", ".git", "build", ".kotlin",
+                  "local.properties", "*.log"
+              ))
           # The ZIP references @style/Fortune but does not define it.
           # Add a compatibility theme to the extracted copy used for building.
           values = destination / "app" / "src" / "main" / "res" / "values"
