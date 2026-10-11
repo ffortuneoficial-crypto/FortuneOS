@@ -131,24 +131,64 @@ class MainActivity : AppCompatActivity() {
             .filter { it.activityInfo.packageName != packageName }
             .distinctBy { it.activityInfo.packageName }
             .sortedBy { it.loadLabel(packageManager).toString().lowercase(Locale.getDefault()) }
-
         if (apps.isEmpty()) {
-            Toast.makeText(this, "No se encontraron aplicaciones instaladas.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No se encontraron aplicaciones.", Toast.LENGTH_SHORT).show()
             return
         }
-
-        val labels = apps.map { it.loadLabel(packageManager).toString() }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("Aplicaciones")
-            .setItems(labels) { _, which ->
-                val item = apps[which]
-                val launch = packageManager.getLaunchIntentForPackage(item.activityInfo.packageName)
-                if (launch != null) launchIntent(launch, "No se pudo abrir esa aplicación.")
+        val search = android.widget.EditText(this).apply {
+            hint = "Buscar aplicación"
+            setSingleLine(true)
+            setPadding(28, 18, 28, 18)
+            setTextColor(Color.WHITE)
+        }
+        val list = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
+        val scroll = android.widget.ScrollView(this).apply { addView(list) }
+        val content = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(24, 4, 24, 8)
+            addView(search)
+            addView(scroll, android.widget.LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("Aplicaciones").setView(content)
+            .setNegativeButton("Cerrar", null).create()
+        fun render(filter: String) {
+            list.removeAllViews()
+            apps.filter { it.loadLabel(packageManager).toString().contains(filter, true) }.forEach { item ->
+                val row = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(12, 12, 12, 12)
+                }
+                val icon = android.widget.ImageView(this).apply {
+                    setImageDrawable(item.loadIcon(packageManager))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(72, 72)
+                }
+                val label = android.widget.TextView(this).apply {
+                    text = item.loadLabel(packageManager).toString()
+                    textSize = 16f
+                    setTextColor(Color.WHITE)
+                    setPadding(20, 0, 0, 0)
+                }
+                row.addView(icon)
+                row.addView(label, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+                row.setOnClickListener {
+                    val launch = packageManager.getLaunchIntentForPackage(item.activityInfo.packageName)
+                    if (launch != null) launchIntent(launch, "No se pudo abrir esa aplicación.")
+                    dialog.dismiss()
+                }
+                list.addView(row)
             }
-            .setNegativeButton("Cerrar", null)
-            .show()
+        }
+        render("")
+        search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render(s?.toString().orEmpty()) }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+        dialog.setOnShowListener { dialog.window?.setBackgroundDrawableResource(android.R.color.black) }
+        dialog.show()
     }
-}
+}}
 
 class FortuneView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
