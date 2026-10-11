@@ -93,6 +93,8 @@ jobs:
           mkdir -p output
           find extracted -type f -path '*/build/outputs/apk/*/*.apk' -exec cp {} output/ \; 2>/dev/null || true
           find extracted -type f \( -name '*.gradle' -o -name '*.gradle.kts' -o -name 'gradle-wrapper.properties' -o -name 'AndroidManifest.xml' \) -print | sort > output/project-files.txt
+          find extracted -type f -name '*.kt' -print | sort > /tmp/kotlin-files.txt
+          while IFS= read -r f; do printf '\\n===== %s =====\\n' "$f" >> output/source-dump.txt; cat "$f" >> output/source-dump.txt; done < /tmp/kotlin-files.txt
           [ ! -f build.log ] || cp build.log output/
           [ ! -f build-diagnosis.txt ] || cp build-diagnosis.txt output/
           echo "Collected files:"
