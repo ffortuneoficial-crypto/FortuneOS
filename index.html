@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050810">
+  <meta name="description" content="FortuneOS: un centro de mando personal para organizar proyectos, archivos y herramientas desde Android.">
+  <title>FortuneOS — Centro de mando personal</title>
+  <style>
+    :root{color-scheme:dark;--bg:#050810;--panel:#0b1220;--line:rgba(120,190,220,.18);--text:#edf7ff;--muted:#9aabba;--cyan:#55e5ff;--purple:#a77bff}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,rgba(32,107,145,.22),transparent 55%),radial-gradient(ellipse at 90% 80%,rgba(105,53,173,.12),transparent 45%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;flex-direction:column}
+    .wrap{width:min(920px,100%);margin:auto;padding:28px 22px 56px}
+    header{display:flex;align-items:center;gap:12px;margin:10px 0 72px}
+    .mark{width:42px;height:42px;border:1px solid rgba(85,229,255,.6);border-radius:14px;display:grid;place-items:center;color:var(--cyan);font-size:22px;font-weight:800;box-shadow:0 0 28px rgba(85,229,255,.12)}
+    .brand{font-weight:750;letter-spacing:.18em;font-size:14px}
+    .tag{color:var(--muted);font-size:11px;letter-spacing:.12em;margin-top:4px}
+    .eyebrow{color:var(--cyan);font-size:12px;letter-spacing:.22em;text-transform:uppercase}
+    h1{font-size:clamp(42px,8vw,76px);line-height:1.02;letter-spacing:-.055em;margin:18px 0 22px;max-width:760px}
+    h1 span{background:linear-gradient(100deg,var(--cyan),#b3c9ff 55%,var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .intro{max-width:650px;color:#b5c5d5;font-size:clamp(16px,2.5vw,19px);line-height:1.75}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:42px 0}
+    .card{padding:22px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,rgba(16,29,47,.9),rgba(7,12,23,.8))}
+    .card h2{font-size:16px;margin:0 0 10px}
+    .card p{color:var(--muted);font-size:14px;line-height:1.65;margin:0}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+    a.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 18px;border-radius:12px;text-decoration:none;font-weight:650;font-size:14px}
+    .primary{background:var(--cyan);color:#041018}
+    .secondary{border:1px solid var(--line);color:var(--text);background:rgba(255,255,255,.025)}
+    footer{margin-top:auto;border-top:1px solid var(--line);padding:22px;color:#728397;text-align:center;font-size:12px}
+    @media(max-width:560px){header{margin-bottom:56px}.wrap{padding-top:20px}.cards{margin:30px 0}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="mark">F</div>
+      <div><div class="brand">FORTUNEOS</div><div class="tag">PERSONAL COMMAND CENTER</div></div>
+    </header>
+    <div class="eyebrow">Tecnología personal · Android</div>
+    <h1>Tu espacio digital.<br><span>Bajo tu control.</span></h1>
+    <p class="intro">FortuneOS es un proyecto en desarrollo para convertir el teléfono en un centro de mando personal: una experiencia enfocada, elegante y pensada para reunir herramientas y proyectos en un solo lugar.</p>
+    <div class="cards">
+      <section class="card"><h2>Una interfaz propia</h2><p>Una experiencia visual oscura, con partículas, luz y acentos cian y violeta.</p></section>
+      <section class="card"><h2>Diseñado para Android</h2><p>El proyecto principal es una aplicación Android nativa. Esta página es solo su presentación web.</p></section>
+      <section class="card"><h2>En construcción</h2><p>Estamos revisando y mejorando la base técnica antes de considerar el proyecto listo para uso diario.</p></section>
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/ffortuneoficial-crypto/FortuneOS">Ver código en GitHub ↗</a>
+      <a class="btn secondary" href="https://github.com/ffortuneoficial-crypto/FortuneOS/tree/main/extracted-project/FortuneOS">Ver proyecto Android</a>
+    </div>
+  </main>
+  <footer>FORTUNEOS · Proyecto independiente en desarrollo</footer>
+</body>
+</html>
