@@ -1,0 +1,101 @@
+name: FortuneOS Android build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'FortuneOS.zip'
+      - '.github/workflows/fortuneos-android-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Inspect and extract uploaded project
+        id: inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p extracted
+          unzip -q FortuneOS.zip -d extracted
+          echo "=== ZIP CONTENTS ==="
+          unzip -l FortuneOS.zip
+          echo "=== EXTRACTED FILES (first 250) ==="
+          find extracted -maxdepth 6 -type f | sort | head -250
+          ROOT="$(find extracted -type f \\( -name gradlew -o -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts \\) -print | head -1 | xargs -r dirname)"
+          if [ -z "${ROOT:-}" ]; then
+            echo "No Gradle project files found in FortuneOS.zip." | tee build-diagnosis.txt
+            exit 2
+          fi
+          while [ "$ROOT" != "." ] && [ ! -f "$ROOT/settings.gradle" ] && [ ! -f "$ROOT/settings.gradle.kts" ]; do
+            PARENT="$(dirname "$ROOT")"
+            [ "$PARENT" = "$ROOT" ] && break
+            ROOT="$PARENT"
+          done
+          echo "Project root candidate: $ROOT" | tee build-diagnosis.txt
+          echo "project_root=$ROOT" >> "$GITHUB_OUTPUT"
+          if [ -f "$ROOT/gradlew" ]; then
+            chmod +x "$ROOT/gradlew"
+            echo "Gradle wrapper found."
+          else
+            echo "No Gradle wrapper found." | tee -a build-diagnosis.txt
+          fi
+          if [ -f "$ROOT/settings.gradle" ] || [ -f "$ROOT/settings.gradle.kts" ]; then
+            echo "Gradle settings file found." | tee -a build-diagnosis.txt
+          else
+            echo "No Gradle settings file found at candidate root." | tee -a build-diagnosis.txt
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        id: build
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="${{ steps.inspect.outputs.project_root }}"
+          cd "$ROOT"
+          if [ -f "./gradlew" ]; then
+            ./gradlew --no-daemon assembleDebug --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          elif [ -f "settings.gradle" ] || [ -f "settings.gradle.kts" ]; then
+            gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          else
+            echo "Cannot build: no Gradle project root or wrapper." | tee "$GITHUB_WORKSPACE/build.log"
+            exit 2
+          fi
+
+      - name: Collect APKs and diagnostics
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p output
+          find extracted -type f -path '*/build/outputs/apk/*/*.apk' -exec cp {} output/ \; 2>/dev/null || true
+          find extracted -type f \( -name '*.gradle' -o -name '*.gradle.kts' -o -name 'gradle-wrapper.properties' -o -name 'AndroidManifest.xml' \) -print | sort > output/project-files.txt
+          [ ! -f build.log ] || cp build.log output/
+          [ ! -f build-diagnosis.txt ] || cp build-diagnosis.txt output/
+          echo "Collected files:"
+          find output -maxdepth 2 -type f -printf '%p (%s bytes)\n'
+
+      - name: Upload APK and build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FortuneOS-build-results
+          path: |
+            output/**
+            extracted/**/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
+          retention-days: 7
