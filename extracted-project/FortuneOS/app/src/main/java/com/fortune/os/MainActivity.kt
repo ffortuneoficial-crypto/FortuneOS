@@ -195,7 +195,7 @@ class MainActivity : AppCompatActivity() {
         dialog.setOnShowListener { dialog.window?.setBackgroundDrawableResource(android.R.color.black) }
         dialog.show()
     }
-}}
+}
 
 class FortuneView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
