@@ -103,7 +103,7 @@ jobs:
                   lines = text.splitlines()
                   package_index = next(i for i, line in enumerate(lines) if line.startswith("package "))
                   lines[package_index+1:package_index+1] = [""] + missing
-                  path.write_text("\\n".join(lines) + "\\n")
+                  path.write_text("\n".join(lines) + "\n")
                   print("Patched imports:", rel, missing)
               else:
                   print("Imports already present:", rel)
@@ -129,7 +129,7 @@ jobs:
           find extracted -type f -path '*/build/outputs/apk/*/*.apk' -exec cp {} output/ \; 2>/dev/null || true
           find extracted -type f \( -name '*.gradle' -o -name '*.gradle.kts' -o -name 'gradle-wrapper.properties' -o -name 'AndroidManifest.xml' \) -print | sort > output/project-files.txt
           find extracted -type f -name '*.kt' -print | sort > /tmp/kotlin-files.txt
-          while IFS= read -r f; do printf '\\n===== %s =====\\n' "$f" >> output/source-dump.txt; cat "$f" >> output/source-dump.txt; done < /tmp/kotlin-files.txt
+          while IFS= read -r f; do printf '\n===== %s =====\n' "$f" >> output/source-dump.txt; cat "$f" >> output/source-dump.txt; done < /tmp/kotlin-files.txt
           ROOT="${{ steps.inspect.outputs.project_root }}"
           if [ -d "$ROOT" ]; then
             (cd "$(dirname "$ROOT")" && zip -qr "$GITHUB_WORKSPACE/output/FortuneOS-fixed-project.zip" "$(basename "$ROOT")" -x '*/build/*' '*/.gradle/*')
