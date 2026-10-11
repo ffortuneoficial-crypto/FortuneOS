@@ -6,4 +6,7 @@
   </style>
 
   <style name="AppTheme" parent="Base.AppTheme" />
+
+  <!-- Compatibility alias used by legacy layouts and components. -->
+  <style name="Fortune" parent="AppTheme" />
 </resources>
