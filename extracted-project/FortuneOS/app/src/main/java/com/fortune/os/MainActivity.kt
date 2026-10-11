@@ -72,8 +72,8 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("fortuneos", MODE_PRIVATE)
         val projects = linkedMapOf(
             "Fortune Web" to "https://github.com/ffortuneoficial-crypto/WebFortune",
-            "Cerca de mí" to "https://github.com/ffortuneoficial-crypto",
-            "Finanzas personales" to "https://supabase.com/dashboard",
+            "GitHub · proyectos" to "https://github.com/ffortuneoficial-crypto",
+            "Supabase · datos" to "https://supabase.com/dashboard",
             "FortuneOS · Código" to "https://github.com/ffortuneoficial-crypto/FortuneOS"
         )
         prefs.getString("projects", "").orEmpty().lines().filter { it.contains("|") }.forEach {
