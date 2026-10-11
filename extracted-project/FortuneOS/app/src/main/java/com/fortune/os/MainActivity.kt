@@ -255,6 +255,7 @@ class FortuneView(context: Context) : View(context) {
     @Volatile private var running = false
     private var widthF = 0f
     private var heightF = 0f
+    private val uiScale: Float get() = (widthF / 360f).coerceIn(1f, 4f)
     private var centerX = 0f
     private var centerY = 0f
     private var batteryLevel = 0
@@ -265,7 +266,7 @@ class FortuneView(context: Context) : View(context) {
     private var downY = 0f
 
     init {
-        repeat(22) { particles.add(Particle()) }
+        repeat(9) { particles.add(Particle()) }
         updateBattery()
         isClickable = true
         contentDescription = "FortuneOS. Desliza hacia arriba para abrir las aplicaciones."
@@ -283,13 +284,12 @@ class FortuneView(context: Context) : View(context) {
         super.onDraw(canvas)
         drawBackground(canvas)
         drawParticles(canvas)
-        drawConnections(canvas)
         drawCore(canvas)
         drawClock(canvas)
         drawStatus(canvas)
         drawApps(canvas)
         drawGesture(canvas)
-        if (running) postInvalidateOnAnimation()
+        if (running) postInvalidateDelayed(50)
     }
 
     private fun drawBackground(canvas: Canvas) {
@@ -365,57 +365,59 @@ class FortuneView(context: Context) : View(context) {
     private fun drawClock(canvas: Canvas) {
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-        textPaint.textSize = 50f
+        textPaint.textSize = 50f * uiScale
         textPaint.color = Color.WHITE
-        canvas.drawText(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), centerX, centerY - 150f, textPaint)
-        textPaint.textSize = 12f
+        canvas.drawText(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), centerX, centerY - 150f * uiScale, textPaint)
+        textPaint.textSize = 12f * uiScale
         textPaint.color = Color.argb(185, 190, 190, 210)
         val date = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date())
-        canvas.drawText(date.uppercase(Locale.getDefault()), centerX, centerY - 124f, textPaint)
+        canvas.drawText(date.uppercase(Locale.getDefault()), centerX, centerY - 124f * uiScale, textPaint)
     }
 
     private fun drawStatus(canvas: Canvas) {
         updateBattery()
         textPaint.textAlign = Paint.Align.LEFT
-        textPaint.textSize = 11f
+        textPaint.textSize = 12f * uiScale
         textPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         textPaint.color = Color.argb(200, 210, 210, 230)
-        canvas.drawText("FORTUNEOS", 24f, 48f, textPaint)
+        canvas.drawText("FORTUNEOS", 24f * uiScale, 48f * uiScale, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText("$batteryLevel% BATTERY", widthF - 24f, 48f, textPaint)
+        canvas.drawText("$batteryLevel% BATTERY", widthF - 24f * uiScale, 48f * uiScale, textPaint)
         paint.color = cyan
-        canvas.drawCircle(widthF - 112f, 44f, 2.5f, paint)
+        canvas.drawCircle(widthF - 112f * uiScale, 44f * uiScale, 2.5f * uiScale, paint)
     }
 
     private fun drawApps(canvas: Canvas) {
-        val y = heightF - 126f
+        val s = uiScale
+        val y = heightF - 126f * s
         val spacing = widthF / 6f
         for (i in shortcuts.indices) {
             val x = spacing * (i + 1)
-            glowPaint.color = Color.argb(18, 196, 180, 137)
-            canvas.drawCircle(x, y, 32f, glowPaint)
+            glowPaint.color = Color.argb(16, 196, 180, 137)
+            canvas.drawCircle(x, y, 34f * s, glowPaint)
             paint.color = Color.rgb(35, 43, 38)
-            canvas.drawCircle(x, y, 27f, paint)
+            canvas.drawCircle(x, y, 29f * s, paint)
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.3f
+            paint.strokeWidth = 1.3f * s
             paint.color = Color.argb(175, 120, 139, 119)
-            canvas.drawCircle(x, y, 27f, paint)
+            canvas.drawCircle(x, y, 29f * s, paint)
             paint.style = Paint.Style.FILL
             textPaint.textAlign = Paint.Align.CENTER
-            textPaint.textSize = if (shortcuts[i].length > 4) 8f else 9f
+            textPaint.textSize = (if (shortcuts[i].length > 4) 11f else 12f) * s
             textPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             textPaint.color = Color.WHITE
-            canvas.drawText(shortcuts[i], x, y + 4f, textPaint)
+            canvas.drawText(shortcuts[i], x, y + 4f * s, textPaint)
         }
     }
 
     private fun drawGesture(canvas: Canvas) {
+        val s = uiScale
         paint.color = Color.argb(150, 196, 180, 137)
-        canvas.drawRoundRect(centerX - 32f, heightF - 42f, centerX + 32f, heightF - 38f, 4f, 4f, paint)
+        canvas.drawRoundRect(centerX - 32f * s, heightF - 42f * s, centerX + 32f * s, heightF - 38f * s, 4f * s, 4f * s, paint)
         textPaint.textAlign = Paint.Align.CENTER
-        textPaint.textSize = 9f
+        textPaint.textSize = 11f * s
         textPaint.color = Color.argb(150, 180, 180, 200)
-        canvas.drawText("SWIPE UP · ALL APPS", centerX, heightF - 54f, textPaint)
+        canvas.drawText("SWIPE UP · ALL APPS", centerX, heightF - 54f * s, textPaint)
     }
 
     private fun updateBattery() {
@@ -434,18 +436,19 @@ class FortuneView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 val dx = event.x - downX
                 val dy = event.y - downY
-                if (downY - event.y > 70f && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                if (downY - event.y > 70f * uiScale && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
                     (context as? MainActivity)?.onShortcut(4)
                     return true
                 }
-                if (kotlin.math.abs(dx) < 35f && kotlin.math.abs(dy) < 35f) {
-                    val y = heightF - 126f
-                    if (event.y in (y - 50f)..(y + 50f)) {
+                if (kotlin.math.abs(dx) < 35f * uiScale && kotlin.math.abs(dy) < 35f * uiScale) {
+                    val s = uiScale
+                    val y = heightF - 126f * s
+                    if (event.y in (y - 50f * s)..(y + 50f * s)) {
                         val spacing = widthF / 6f
                         val index = ((event.x / spacing).toInt() - 1)
                         if (index in shortcuts.indices) (context as? MainActivity)?.onShortcut(index)
-                    } else if (event.y in (centerY - 100f)..(centerY + 100f) &&
-                        event.x in (centerX - 100f)..(centerX + 100f)) {
+                    } else if (event.y in (centerY - 100f * s)..(centerY + 100f * s) &&
+                        event.x in (centerX - 100f * s)..(centerX + 100f * s)) {
                         (context as? MainActivity)?.openPersonalSpace()
                     }
                 }
@@ -486,7 +489,7 @@ class FortuneView(context: Context) : View(context) {
             y = Random.nextFloat() * h
             vx = (Random.nextFloat() - 0.5f) * 0.18f
             vy = (Random.nextFloat() - 0.5f) * 0.18f
-            size = 0.8f + Random.nextFloat() * 2.2f
+            size = (0.8f + Random.nextFloat() * 1.4f) * uiScale
             brightness = 0.3f + Random.nextFloat() * 0.7f
         }
 
