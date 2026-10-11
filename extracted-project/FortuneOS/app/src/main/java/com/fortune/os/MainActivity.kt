@@ -170,7 +170,7 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this).setTitle("¿Qué archivo quieres quitar?")
                     .setItems(labels.toTypedArray()) { _, which ->
                         val updated = files.filterIndexed { index, _ -> index != which }
-                        prefs.edit().putString("saved_files", updated.joinToString("\\n")).apply()
+                        prefs.edit().putString("saved_files", updated.joinToString("\n")).apply()
                         Toast.makeText(this, "Referencia eliminada; el archivo original no se borra.", Toast.LENGTH_LONG).show()
                     }
                     .setNegativeButton("Cancelar", null).show()
