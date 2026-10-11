@@ -166,6 +166,15 @@ class MainActivity : AppCompatActivity() {
                 launchIntent(Intent(Intent.ACTION_VIEW).setDataAndType(uri, contentResolver.getType(uri) ?: "*/*")
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "No se pudo abrir el archivo.")
             }
+            .setPositiveButton("Quitar referencia") { _, _ ->
+                AlertDialog.Builder(this).setTitle("¿Qué archivo quieres quitar?")
+                    .setItems(labels.toTypedArray()) { _, which ->
+                        val updated = files.filterIndexed { index, _ -> index != which }
+                        prefs.edit().putString("saved_files", updated.joinToString("\\n")).apply()
+                        Toast.makeText(this, "Referencia eliminada; el archivo original no se borra.", Toast.LENGTH_LONG).show()
+                    }
+                    .setNegativeButton("Cancelar", null).show()
+            }
             .setNeutralButton("Añadir archivo") { _, _ -> openFiles() }
             .setNegativeButton("Cerrar", null).show()
     }
