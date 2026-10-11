@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "FortuneOS-main-v1.1.zip"
       - "extracted-project/FortuneOS/**"
       - ".github/workflows/android-build.yml"
   workflow_dispatch:
@@ -18,6 +19,45 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Extract and prepare corrected project archive
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, shutil, stat, sys, zipfile
+          archive = pathlib.Path("FortuneOS-main-v1.1.zip")
+          if not archive.is_file():
+              sys.exit("Missing FortuneOS-main-v1.1.zip")
+          temp = pathlib.Path("/tmp/fortuneos-archive")
+          shutil.rmtree(temp, ignore_errors=True)
+          temp.mkdir(parents=True)
+          with zipfile.ZipFile(archive) as z:
+              entries = z.infolist()
+              if len(entries) > 5000:
+                  sys.exit("Archive contains too many entries")
+              if sum(x.file_size for x in entries) > 100 * 1024 * 1024:
+                  sys.exit("Archive expands beyond 100 MB")
+              for item in entries:
+                  p = pathlib.PurePosixPath(item.filename)
+                  mode = item.external_attr >> 16
+                  if p.is_absolute() or ".." in p.parts or (mode and stat.S_ISLNK(mode)):
+                      sys.exit("Unsafe archive path or symlink")
+              z.extractall(temp)
+          candidates = [p.parent for p in temp.rglob("gradlew")
+                       if (p.parent / "app" / "build.gradle.kts").is_file()]
+          if not candidates:
+              sys.exit("ZIP does not contain a Gradle Android project with app/build.gradle.kts")
+          project = candidates[0]
+          destination = pathlib.Path("extracted-project/FortuneOS")
+          shutil.rmtree(destination, ignore_errors=True)
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copytree(project, destination, ignore=shutil.ignore_patterns(
+              ".gradle", ".cg", ".idea", ".git", "build", ".kotlin", "*.iml",
+              "local.properties", "*.log"
+          ))
+          print(f"Prepared project from archive: {project}")
+          print(f"Project files: {sum(1 for p in destination.rglob('*') if p.is_file())}")
+          PY
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -28,7 +68,7 @@ jobs:
         working-directory: extracted-project/FortuneOS
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
