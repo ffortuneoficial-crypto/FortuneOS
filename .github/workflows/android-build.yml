@@ -48,8 +48,6 @@ jobs:
               sys.exit("ZIP does not contain a Gradle Android project with app/build.gradle.kts")
           project = candidates[0]
           destination = pathlib.Path("extracted-project/FortuneOS")
-          # Preserve only the intentional MainActivity edit; overlaying the whole
-          # extracted project can replace archive resources with stale source files.
           overlay_file = pathlib.Path("/tmp/fortuneos-MainActivity.kt")
           tracked_main = pathlib.Path("extracted-project/FortuneOS/app/src/main/java/com/fortune/os/MainActivity.kt")
           if tracked_main.is_file():
@@ -64,9 +62,18 @@ jobs:
               target_main = destination / "app" / "src" / "main" / "java" / "com" / "fortune" / "os" / "MainActivity.kt"
               target_main.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(overlay_file, target_main)
-          print(f"Prepared project from archive: {project}")
-          print(f"Project files: {sum(1 for p in destination.rglob('*') if p.is_file())}")
-          # Theme resources are already defined by the project; do not create duplicates.
+
+          # The original archive references @style/Fortune but omits that style.
+          # Keep the compatibility alias in its own file to avoid duplicate resources.
+          values = destination / "app" / "src" / "main" / "res" / "values"
+          values.mkdir(parents=True, exist_ok=True)
+          (values / "fortune_compat.xml").write_text(
+              '<?xml version="1.0" encoding="utf-8"?>\\n'
+              '<resources>\\n'
+              '    <style name="Fortune" parent="AppTheme" />\\n'
+              '</resources>\\n',
+              encoding="utf-8"
+          )
           print(f"Prepared project from archive: {project}")
           print(f"Project files: {sum(1 for p in destination.rglob('*') if p.is_file())}")
 
