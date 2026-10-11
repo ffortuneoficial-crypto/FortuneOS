@@ -1,0 +1,39 @@
+name: Android build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "extracted-project/FortuneOS/**"
+      - ".github/workflows/android-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build debug APK
+        working-directory: extracted-project/FortuneOS
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FortuneOS-debug
+          path: extracted-project/FortuneOS/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
