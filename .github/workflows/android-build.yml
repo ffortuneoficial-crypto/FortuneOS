@@ -48,25 +48,24 @@ jobs:
               sys.exit("ZIP does not contain a Gradle Android project with app/build.gradle.kts")
           project = candidates[0]
           destination = pathlib.Path("extracted-project/FortuneOS")
-          # Preserve tracked source edits before refreshing the extracted project from the ZIP.
-          overlay_backup = pathlib.Path("/tmp/fortuneos-overlay")
-          shutil.rmtree(overlay_backup, ignore_errors=True)
-          if destination.is_dir():
-              shutil.copytree(destination, overlay_backup, ignore=shutil.ignore_patterns(
-                  ".gradle", ".cg", ".idea", ".git", "build", ".kotlin",
-                  "local.properties", "*.log"
-              ))
+          # Preserve only the intentional MainActivity edit; overlaying the whole
+          # extracted project can replace archive resources with stale source files.
+          overlay_file = pathlib.Path("/tmp/fortuneos-MainActivity.kt")
+          tracked_main = pathlib.Path("extracted-project/FortuneOS/app/src/main/java/com/fortune/os/MainActivity.kt")
+          if tracked_main.is_file():
+              shutil.copy2(tracked_main, overlay_file)
           shutil.rmtree(destination, ignore_errors=True)
           destination.parent.mkdir(parents=True, exist_ok=True)
           shutil.copytree(project, destination, ignore=shutil.ignore_patterns(
               ".gradle", ".cg", ".idea", ".git", "build", ".kotlin", "*.iml",
               "local.properties", "*.log"
           ))
-          if overlay_backup.is_dir():
-              shutil.copytree(overlay_backup, destination, dirs_exist_ok=True, ignore=shutil.ignore_patterns(
-                  ".gradle", ".cg", ".idea", ".git", "build", ".kotlin",
-                  "local.properties", "*.log"
-              ))
+          if overlay_file.is_file():
+              target_main = destination / "app" / "src" / "main" / "java" / "com" / "fortune" / "os" / "MainActivity.kt"
+              target_main.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(overlay_file, target_main)
+          print(f"Prepared project from archive: {project}")
+          print(f"Project files: {sum(1 for p in destination.rglob('*') if p.is_file())}")
           # Theme resources are already defined by the project; do not create duplicates.
           print(f"Prepared project from archive: {project}")
           print(f"Project files: {sum(1 for p in destination.rglob('*') if p.is_file())}")
