@@ -33,7 +33,7 @@ class MainActivity : AppCompatActivity() {
             val prefs = getSharedPreferences("fortuneos", MODE_PRIVATE)
             val saved = prefs.getString("saved_files", "").orEmpty().lines()
                 .filter { it.isNotBlank() && it != uri.toString() }
-            prefs.edit().putString("saved_files", (saved + uri.toString()).joinToString("\\n")).apply()
+            prefs.edit().putString("saved_files", (saved + uri.toString()).joinToString("\n")).apply()
             Toast.makeText(this, "Archivo guardado en Tu espacio", Toast.LENGTH_SHORT).show()
         }
     }
