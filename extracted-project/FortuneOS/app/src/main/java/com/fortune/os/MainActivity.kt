@@ -1,96 +1,132 @@
 package com.fortune.os
 
-import android.os.Bundle
-import android.graphics.*
-import android.graphics.drawable.GradientDrawable
-import android.view.*
+import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.graphics.*
+import android.net.Uri
 import android.os.BatteryManager
-import android.widget.*
-import java.text.SimpleDateFormat
-import java.util.*
-import kotlin.math.*
-import kotlin.random.Random
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.min
+import kotlin.math.sin
+import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
-
     private lateinit var fortuneView: FortuneView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
             View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
             View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.BLACK
-
         fortuneView = FortuneView(this)
         setContentView(fortuneView)
     }
 
     override fun onResume() {
         super.onResume()
-        fortuneView.startAnimation()
+        if (::fortuneView.isInitialized) fortuneView.startAnimation()
     }
 
     override fun onPause() {
+        if (::fortuneView.isInitialized) fortuneView.stopAnimation()
         super.onPause()
-        fortuneView.stopAnimation()
+    }
+
+    fun onShortcut(index: Int) {
+        when (index) {
+            0 -> launchIntent(Intent(Intent.ACTION_DIAL), "No se encontró la aplicación de teléfono.")
+            1 -> launchIntent(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")), "No se encontró una aplicación de mensajes.")
+            2 -> launchIntent(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")), "No se encontró un navegador.")
+            3 -> {
+                val music = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC)
+                launchIntent(music, "No se encontró una aplicación de música.")
+            }
+            4 -> showAppDrawer()
+        }
+    }
+
+    private fun launchIntent(intent: Intent, errorMessage: String) {
+        try {
+            if (intent.resolveActivity(packageManager) != null) startActivity(intent)
+            else Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showAppDrawer() {
+        val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val apps = packageManager.queryIntentActivities(query, 0)
+            .filter { it.activityInfo.packageName != packageName }
+            .distinctBy { it.activityInfo.packageName }
+            .sortedBy { it.loadLabel(packageManager).toString().lowercase(Locale.getDefault()) }
+
+        if (apps.isEmpty()) {
+            Toast.makeText(this, "No se encontraron aplicaciones instaladas.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val labels = apps.map { it.loadLabel(packageManager).toString() }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Aplicaciones")
+            .setItems(labels) { _, which ->
+                val item = apps[which]
+                val launch = packageManager.getLaunchIntentForPackage(item.activityInfo.packageName)
+                if (launch != null) launchIntent(launch, "No se pudo abrir esa aplicación.")
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 }
 
 class FortuneView(context: Context) : View(context) {
-
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
     private val particles = ArrayList<Particle>()
-
-    private var running = false
-    private var animationThread: Thread? = null
-
+    @Volatile private var running = false
     private var widthF = 0f
     private var heightF = 0f
-
     private var centerX = 0f
     private var centerY = 0f
-
     private var batteryLevel = 0
-
     private val cyan = Color.rgb(70, 225, 255)
     private val purple = Color.rgb(155, 75, 255)
-    private val softPurple = Color.rgb(100, 55, 180)
+    private val shortcuts = arrayOf("PHONE", "CHAT", "WEB", "MUSIC", "APPS")
+    private var downX = 0f
+    private var downY = 0f
 
     init {
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-
-        repeat(75) {
-            particles.add(Particle())
-        }
-
+        repeat(58) { particles.add(Particle()) }
         updateBattery()
+        isClickable = true
+        contentDescription = "FortuneOS. Desliza hacia arriba para abrir las aplicaciones."
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         widthF = w.toFloat()
         heightF = h.toFloat()
-
         centerX = widthF / 2f
         centerY = heightF * 0.43f
-
-        particles.forEach {
-            it.randomize(widthF, heightF)
-        }
+        particles.forEach { it.randomize(widthF, heightF) }
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-
         drawBackground(canvas)
         drawParticles(canvas)
         drawConnections(canvas)
@@ -99,487 +135,214 @@ class FortuneView(context: Context) : View(context) {
         drawStatus(canvas)
         drawApps(canvas)
         drawGesture(canvas)
-
-        if (running) {
-            postInvalidateOnAnimation()
-        }
+        if (running) postInvalidateOnAnimation()
     }
 
     private fun drawBackground(canvas: Canvas) {
-
-        val gradient = RadialGradient(
-            centerX,
-            centerY,
-            max(widthF, heightF) * 0.75f,
-            intArrayOf(
-                Color.rgb(24, 8, 42),
-                Color.rgb(9, 5, 20),
-                Color.BLACK
-            ),
-            floatArrayOf(0f, 0.45f, 1f),
-            Shader.TileMode.CLAMP
+        paint.shader = RadialGradient(
+            centerX, centerY, maxOf(widthF, heightF) * 0.75f,
+            intArrayOf(Color.rgb(24, 8, 42), Color.rgb(9, 5, 20), Color.BLACK),
+            floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP
         )
-
-        paint.shader = gradient
         canvas.drawRect(0f, 0f, widthF, heightF, paint)
         paint.shader = null
     }
 
     private fun drawParticles(canvas: Canvas) {
-
         particles.forEach { p ->
-
             p.update()
-
-            val alpha = (80 + 100 * p.brightness).toInt()
-
-            paint.color = Color.argb(
-                alpha,
-                110,
-                150,
-                255
-            )
-
+            paint.color = Color.argb((80 + 100 * p.brightness).toInt(), 110, 150, 255)
             paint.style = Paint.Style.FILL
-
-            canvas.drawCircle(
-                p.x,
-                p.y,
-                p.size,
-                paint
-            )
+            canvas.drawCircle(p.x, p.y, p.size, paint)
         }
     }
 
     private fun drawConnections(canvas: Canvas) {
-
-        val maxDistance = 190f
-
+        val maxDistance = 150f
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1f
         for (i in particles.indices) {
-
             val a = particles[i]
-
             for (j in i + 1 until particles.size) {
-
                 val b = particles[j]
-
                 val dx = a.x - b.x
                 val dy = a.y - b.y
-
-                val distance = sqrt(dx * dx + dy * dy)
-
+                val distance = kotlin.math.sqrt(dx * dx + dy * dy)
                 if (distance < maxDistance) {
-
-                    val alpha =
-                        ((1f - distance / maxDistance) * 45f).toInt()
-
-                    paint.color = Color.argb(
-                        alpha,
-                        120,
-                        80,
-                        220
-                    )
-
-                    paint.strokeWidth = 1f
-                    paint.style = Paint.Style.STROKE
-
-                    canvas.drawLine(
-                        a.x,
-                        a.y,
-                        b.x,
-                        b.y,
-                        paint
-                    )
+                    paint.color = Color.argb(((1f - distance / maxDistance) * 38f).toInt(), 120, 80, 220)
+                    canvas.drawLine(a.x, a.y, b.x, b.y, paint)
                 }
             }
         }
+        paint.style = Paint.Style.FILL
     }
 
     private fun drawCore(canvas: Canvas) {
-
         val radius = min(widthF, heightF) * 0.145f
-
         glowPaint.shader = RadialGradient(
-            centerX,
-            centerY,
-            radius * 2.3f,
-            intArrayOf(
-                Color.argb(130, 70, 225, 255),
-                Color.argb(60, 155, 75, 255),
-                Color.TRANSPARENT
-            ),
-            null,
-            Shader.TileMode.CLAMP
+            centerX, centerY, radius * 2.2f,
+            intArrayOf(Color.argb(120, 70, 225, 255), Color.argb(55, 155, 75, 255), Color.TRANSPARENT),
+            null, Shader.TileMode.CLAMP
         )
-
-        canvas.drawCircle(
-            centerX,
-            centerY,
-            radius * 2.3f,
-            glowPaint
-        )
-
+        canvas.drawCircle(centerX, centerY, radius * 2.2f, glowPaint)
         glowPaint.shader = null
 
-        paint.shader = LinearGradient(
-            centerX - radius,
-            centerY - radius,
-            centerX + radius,
-            centerY + radius,
-            cyan,
-            purple,
-            Shader.TileMode.CLAMP
-        )
-
-        canvas.drawCircle(
-            centerX,
-            centerY,
-            radius,
-            paint
-        )
-
+        paint.shader = LinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius, cyan, purple, Shader.TileMode.CLAMP)
+        canvas.drawCircle(centerX, centerY, radius, paint)
         paint.shader = null
-
         paint.color = Color.BLACK
-        canvas.drawCircle(
-            centerX,
-            centerY,
-            radius * 0.82f,
-            paint
-        )
-
+        canvas.drawCircle(centerX, centerY, radius * 0.82f, paint)
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2.5f
+        paint.strokeWidth = 2f
         paint.color = Color.argb(210, 70, 225, 255)
-
-        canvas.drawCircle(
-            centerX,
-            centerY,
-            radius * 0.92f,
-            paint
-        )
-
+        canvas.drawCircle(centerX, centerY, radius * 0.92f, paint)
         paint.style = Paint.Style.FILL
 
         textPaint.textAlign = Paint.Align.CENTER
-        textPaint.typeface = Typeface.create(
-            "sans-serif",
-            Typeface.BOLD
-        )
-
+        textPaint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
         textPaint.textSize = radius * 0.27f
         textPaint.color = Color.WHITE
-
-        canvas.drawText(
-            "FORTUNE",
-            centerX,
-            centerY + radius * 0.08f,
-            textPaint
-        )
-
-        textPaint.textSize = radius * 0.10f
+        canvas.drawText("FORTUNE", centerX, centerY + radius * 0.06f, textPaint)
+        textPaint.textSize = radius * 0.095f
         textPaint.color = cyan
-
-        canvas.drawText(
-            "CORE ACTIVE",
-            centerX,
-            centerY + radius * 0.36f,
-            textPaint
-        )
+        canvas.drawText("PERSONAL SYSTEM", centerX, centerY + radius * 0.36f, textPaint)
     }
 
     private fun drawClock(canvas: Canvas) {
-
-        val time = SimpleDateFormat(
-            "HH:mm",
-            Locale.getDefault()
-        ).format(Date())
-
         textPaint.textAlign = Paint.Align.CENTER
-        textPaint.typeface = Typeface.create(
-            "sans-serif",
-            Typeface.NORMAL
-        )
-
-        textPaint.textSize = 52f
+        textPaint.typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+        textPaint.textSize = 50f
         textPaint.color = Color.WHITE
-
-        canvas.drawText(
-            time,
-            centerX,
-            centerY - 150f,
-            textPaint
-        )
-
-        val date = SimpleDateFormat(
-            "EEEE, d MMM",
-            Locale.getDefault()
-        ).format(Date())
-
-        textPaint.textSize = 13f
-        textPaint.color = Color.argb(
-            180,
-            190,
-            190,
-            210
-        )
-
-        canvas.drawText(
-            date.uppercase(),
-            centerX,
-            centerY - 123f,
-            textPaint
-        )
+        canvas.drawText(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), centerX, centerY - 150f, textPaint)
+        textPaint.textSize = 12f
+        textPaint.color = Color.argb(185, 190, 190, 210)
+        val date = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date())
+        canvas.drawText(date.uppercase(Locale.getDefault()), centerX, centerY - 124f, textPaint)
     }
 
     private fun drawStatus(canvas: Canvas) {
-
         updateBattery()
-
         textPaint.textAlign = Paint.Align.LEFT
-        textPaint.textSize = 12f
-        textPaint.color = Color.argb(
-            190,
-            210,
-            210,
-            230
-        )
-
-        canvas.drawText(
-            "SYSTEM ACTIVE",
-            28f,
-            54f,
-            textPaint
-        )
-
+        textPaint.textSize = 11f
+        textPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        textPaint.color = Color.argb(200, 210, 210, 230)
+        canvas.drawText("FORTUNE  /  READY", 24f, 48f, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
-
-        canvas.drawText(
-            "$batteryLevel%",
-            widthF - 28f,
-            54f,
-            textPaint
-        )
-
+        canvas.drawText("$batteryLevel% BATTERY", widthF - 24f, 48f, textPaint)
         paint.color = cyan
-        canvas.drawCircle(
-            widthF - 70f,
-            49f,
-            3f,
-            paint
-        )
+        canvas.drawCircle(widthF - 112f, 44f, 2.5f, paint)
     }
 
     private fun drawApps(canvas: Canvas) {
-
-        val y = heightF - 125f
+        val y = heightF - 126f
         val spacing = widthF / 6f
-
-        val names = arrayOf(
-            "PHONE",
-            "CHAT",
-            "WEB",
-            "MUSIC",
-            "APPS"
-        )
-
-        for (i in names.indices) {
-
+        for (i in shortcuts.indices) {
             val x = spacing * (i + 1)
-
-            glowPaint.color = Color.argb(
-                35,
-                70,
-                225,
-                255
-            )
-
-            canvas.drawCircle(
-                x,
-                y,
-                31f,
-                glowPaint
-            )
-
-            paint.color = Color.argb(
-                220,
-                18,
-                16,
-                30
-            )
-
-            canvas.drawCircle(
-                x,
-                y,
-                27f,
-                paint
-            )
-
+            glowPaint.color = Color.argb(28, 70, 225, 255)
+            canvas.drawCircle(x, y, 32f, glowPaint)
+            paint.color = Color.rgb(18, 16, 30)
+            canvas.drawCircle(x, y, 27f, paint)
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.5f
-            paint.color = Color.argb(
-                150,
-                100,
-                90,
-                180
-            )
-
-            canvas.drawCircle(
-                x,
-                y,
-                27f,
-                paint
-            )
-
+            paint.strokeWidth = 1.3f
+            paint.color = Color.argb(175, 70, 170, 210)
+            canvas.drawCircle(x, y, 27f, paint)
             paint.style = Paint.Style.FILL
-
             textPaint.textAlign = Paint.Align.CENTER
-            textPaint.textSize = 8f
-            textPaint.color = Color.argb(
-                210,
-                220,
-                220,
-                235
-            )
-
-            canvas.drawText(
-                names[i],
-                x,
-                y + 4f,
-                textPaint
-            )
+            textPaint.textSize = if (shortcuts[i].length > 4) 8f else 9f
+            textPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            textPaint.color = Color.WHITE
+            canvas.drawText(shortcuts[i], x, y + 4f, textPaint)
         }
     }
 
     private fun drawGesture(canvas: Canvas) {
-
-        paint.color = Color.argb(
-            120,
-            130,
-            100,
-            220
-        )
-
-        canvas.drawRoundRect(
-            centerX - 35f,
-            heightF - 42f,
-            centerX + 35f,
-            heightF - 38f,
-            4f,
-            4f,
-            paint
-        )
-
+        paint.color = Color.argb(125, 70, 170, 220)
+        canvas.drawRoundRect(centerX - 32f, heightF - 42f, centerX + 32f, heightF - 38f, 4f, 4f, paint)
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.textSize = 9f
-        textPaint.color = Color.argb(
-            100,
-            180,
-            180,
-            200
-        )
-
-        canvas.drawText(
-            "SWIPE UP",
-            centerX,
-            heightF - 52f,
-            textPaint
-        )
+        textPaint.color = Color.argb(150, 180, 180, 200)
+        canvas.drawText("SWIPE UP · ALL APPS", centerX, heightF - 54f, textPaint)
     }
 
     private fun updateBattery() {
+        val manager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        val value = manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        batteryLevel = if (value in 0..100) value else 0
+    }
 
-        val manager =
-            context.getSystemService(
-                Context.BATTERY_SERVICE
-            ) as BatteryManager
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                val dx = event.x - downX
+                val dy = event.y - downY
+                if (downY - event.y > 70f && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                    (context as? MainActivity)?.onShortcut(4)
+                    return true
+                }
+                if (kotlin.math.abs(dx) < 35f && kotlin.math.abs(dy) < 35f) {
+                    val y = heightF - 126f
+                    if (event.y in (y - 50f)..(y + 50f)) {
+                        val spacing = widthF / 6f
+                        val index = ((event.x / spacing).toInt() - 1)
+                        if (index in shortcuts.indices) (context as? MainActivity)?.onShortcut(index)
+                    } else if (event.y in (centerY - 100f)..(centerY + 100f) &&
+                        event.x in (centerX - 100f)..(centerX + 100f)) {
+                        Toast.makeText(context, "FortuneOS está listo. Abre tus aplicaciones desde abajo.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                performClick()
+                return true
+            }
+        }
+        return true
+    }
 
-        batteryLevel =
-            manager.getIntProperty(
-                BatteryManager.BATTERY_PROPERTY_CAPACITY
-            )
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
     }
 
     fun startAnimation() {
-
-        if (running) return
-
-        running = true
-
-        animationThread = Thread {
-
-            while (running) {
-
-                particles.forEach {
-                    it.time += 0.008f
-                }
-
-                try {
-                    Thread.sleep(16)
-                } catch (_: Exception) {
-                }
-            }
+        if (!running) {
+            running = true
+            invalidate()
         }
-
-        animationThread?.start()
     }
 
     fun stopAnimation() {
-
         running = false
-        animationThread = null
     }
 
     inner class Particle {
-
         var x = 0f
         var y = 0f
-
         var vx = 0f
         var vy = 0f
-
         var size = 1.5f
-
         var brightness = 0.5f
-
         var time = Random.nextFloat() * 10f
 
         fun randomize(w: Float, h: Float) {
-
             x = Random.nextFloat() * w
             y = Random.nextFloat() * h
-
-            vx =
-                (Random.nextFloat() - 0.5f) *
-                0.18f
-
-            vy =
-                (Random.nextFloat() - 0.5f) *
-                0.18f
-
-            size =
-                0.8f +
-                Random.nextFloat() * 2.2f
-
-            brightness =
-                0.3f +
-                Random.nextFloat() * 0.7f
+            vx = (Random.nextFloat() - 0.5f) * 0.18f
+            vy = (Random.nextFloat() - 0.5f) * 0.18f
+            size = 0.8f + Random.nextFloat() * 2.2f
+            brightness = 0.3f + Random.nextFloat() * 0.7f
         }
 
         fun update() {
-
             x += vx
             y += vy
-
             time += 0.01f
-
-            brightness =
-                0.45f +
-                sin(time) * 0.35f
-
+            brightness = 0.45f + sin(time) * 0.35f
             if (x < -10f) x = widthF + 10f
             if (x > widthF + 10f) x = -10f
-
             if (y < -10f) y = heightF + 10f
             if (y > heightF + 10f) y = -10f
         }
