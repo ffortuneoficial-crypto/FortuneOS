@@ -74,6 +74,41 @@ jobs:
         with:
           gradle-version: ${{ steps.inspect.outputs.gradle_version }}
 
+      - name: Repair missing Compose imports in uploaded source
+        shell: bash
+        env:
+          PROJECT_ROOT: ${{ steps.inspect.outputs.project_root }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ["PROJECT_ROOT"])
+          fixes = {
+              "app/src/main/java/com/fortuneos/launcher/FortuneApp.kt": [
+                  "import androidx.compose.runtime.collectAsState"
+              ],
+              "app/src/main/java/com/fortuneos/launcher/ui/SettingsScreen.kt": [
+                  "import androidx.compose.runtime.collectAsState"
+              ],
+              "app/src/main/java/com/fortuneos/launcher/MainActivity.kt": [
+                  "import androidx.activity.compose.setContent"
+              ],
+          }
+          for rel, imports in fixes.items():
+              path = root / rel
+              text = path.read_text()
+              missing = [line for line in imports if line not in text]
+              if missing:
+                  lines = text.splitlines()
+                  package_index = next(i for i, line in enumerate(lines) if line.startswith("package "))
+                  lines[package_index+1:package_index+1] = [""] + missing
+                  path.write_text("\\n".join(lines) + "\\n")
+                  print("Patched imports:", rel, missing)
+              else:
+                  print("Imports already present:", rel)
+          PY
+
       - name: Build debug APK
         shell: bash
         run: |
@@ -95,6 +130,10 @@ jobs:
           find extracted -type f \( -name '*.gradle' -o -name '*.gradle.kts' -o -name 'gradle-wrapper.properties' -o -name 'AndroidManifest.xml' \) -print | sort > output/project-files.txt
           find extracted -type f -name '*.kt' -print | sort > /tmp/kotlin-files.txt
           while IFS= read -r f; do printf '\\n===== %s =====\\n' "$f" >> output/source-dump.txt; cat "$f" >> output/source-dump.txt; done < /tmp/kotlin-files.txt
+          ROOT="${{ steps.inspect.outputs.project_root }}"
+          if [ -d "$ROOT" ]; then
+            (cd "$(dirname "$ROOT")" && zip -qr "$GITHUB_WORKSPACE/output/FortuneOS-fixed-project.zip" "$(basename "$ROOT")" -x '*/build/*' '*/.gradle/*')
+          fi
           [ ! -f build.log ] || cp build.log output/
           [ ! -f build-diagnosis.txt ] || cp build-diagnosis.txt output/
           echo "Collected files:"
