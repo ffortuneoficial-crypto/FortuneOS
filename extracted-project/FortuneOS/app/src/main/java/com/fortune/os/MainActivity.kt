@@ -68,6 +68,63 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun openPersonalSpace() {
+        val prefs = getSharedPreferences("fortuneos", MODE_PRIVATE)
+        val projects = linkedMapOf(
+            "Fortune Web" to "https://github.com/ffortuneoficial-crypto/WebFortune",
+            "Cerca de mí" to "https://github.com/ffortuneoficial-crypto",
+            "Finanzas personales" to "https://supabase.com/dashboard",
+            "FortuneOS · Código" to "https://github.com/ffortuneoficial-crypto/FortuneOS"
+        )
+        prefs.getString("projects", "").orEmpty().lines().filter { it.contains("|") }.forEach {
+            val p = it.split("|", limit = 2)
+            if (p.size == 2 && p[0].isNotBlank() && p[1].startsWith("https://")) projects[p[0]] = p[1]
+        }
+        val options = projects.keys.toList() + listOf("＋ Añadir proyecto o enlace", "⌁ Abrir mis archivos")
+        AlertDialog.Builder(this).setTitle("Tu espacio")
+            .setItems(options.toTypedArray()) { _, which ->
+                when (which) {
+                    projects.size -> addProjectLink()
+                    projects.size + 1 -> openFiles()
+                    else -> {
+                        val name = options[which]
+                        prefs.edit().putString("last_project", name).apply()
+                        launchIntent(Intent(Intent.ACTION_VIEW, Uri.parse(projects[name])), "No se pudo abrir el enlace.")
+                    }
+                }
+            }.setNegativeButton("Cerrar", null).show()
+    }
+
+    private fun addProjectLink() {
+        val nameInput = android.widget.EditText(this).apply { hint = "Nombre del proyecto" }
+        val urlInput = android.widget.EditText(this).apply { hint = "Enlace https://..." }
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(36, 8, 36, 0)
+            addView(nameInput)
+            addView(urlInput)
+        }
+        AlertDialog.Builder(this).setTitle("Añadir proyecto").setView(layout)
+            .setPositiveButton("Guardar") { _, _ ->
+                val name = nameInput.text.toString().trim()
+                val url = urlInput.text.toString().trim()
+                if (name.isNotBlank() && url.startsWith("https://")) {
+                    val prefs = getSharedPreferences("fortuneos", MODE_PRIVATE)
+                    val old = prefs.getString("projects", "").orEmpty().lines().filter { it.contains("|") && !it.startsWith("$name|") }
+                    prefs.edit().putString("projects", (old + "$name|$url").joinToString("\n")).apply()
+                    Toast.makeText(this, "Proyecto guardado", Toast.LENGTH_SHORT).show()
+                } else Toast.makeText(this, "Revisa el nombre y el enlace https.", Toast.LENGTH_LONG).show()
+            }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun openFiles() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        launchIntent(intent, "No se pudo abrir el selector de archivos.")
+    }
+
     private fun showAppDrawer() {
         val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val apps = packageManager.queryIntentActivities(query, 0)
@@ -104,8 +161,8 @@ class FortuneView(context: Context) : View(context) {
     private var centerX = 0f
     private var centerY = 0f
     private var batteryLevel = 0
-    private val cyan = Color.rgb(70, 225, 255)
-    private val purple = Color.rgb(155, 75, 255)
+    private val cyan = Color.rgb(196, 180, 137)
+    private val purple = Color.rgb(105, 132, 119)
     private val shortcuts = arrayOf("PHONE", "CHAT", "WEB", "MUSIC", "APPS")
     private var downX = 0f
     private var downY = 0f
@@ -141,7 +198,7 @@ class FortuneView(context: Context) : View(context) {
     private fun drawBackground(canvas: Canvas) {
         paint.shader = RadialGradient(
             centerX, centerY, maxOf(widthF, heightF) * 0.75f,
-            intArrayOf(Color.rgb(24, 8, 42), Color.rgb(9, 5, 20), Color.BLACK),
+            intArrayOf(Color.rgb(35, 43, 38), Color.rgb(20, 25, 23), Color.rgb(13, 16, 15)),
             floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP
         )
         canvas.drawRect(0f, 0f, widthF, heightF, paint)
@@ -151,7 +208,7 @@ class FortuneView(context: Context) : View(context) {
     private fun drawParticles(canvas: Canvas) {
         particles.forEach { p ->
             p.update()
-            paint.color = Color.argb((80 + 100 * p.brightness).toInt(), 110, 150, 255)
+            paint.color = Color.argb((28 + 40 * p.brightness).toInt(), 202, 190, 157)
             paint.style = Paint.Style.FILL
             canvas.drawCircle(p.x, p.y, p.size, paint)
         }
@@ -169,7 +226,7 @@ class FortuneView(context: Context) : View(context) {
                 val dy = a.y - b.y
                 val distance = kotlin.math.sqrt(dx * dx + dy * dy)
                 if (distance < maxDistance) {
-                    paint.color = Color.argb(((1f - distance / maxDistance) * 38f).toInt(), 120, 80, 220)
+                    paint.color = Color.argb(((1f - distance / maxDistance) * 13f).toInt(), 190, 178, 145)
                     canvas.drawLine(a.x, a.y, b.x, b.y, paint)
                 }
             }
@@ -181,31 +238,31 @@ class FortuneView(context: Context) : View(context) {
         val radius = min(widthF, heightF) * 0.145f
         glowPaint.shader = RadialGradient(
             centerX, centerY, radius * 2.2f,
-            intArrayOf(Color.argb(120, 70, 225, 255), Color.argb(55, 155, 75, 255), Color.TRANSPARENT),
+            intArrayOf(Color.argb(38, 196, 180, 137), Color.argb(22, 105, 132, 119), Color.TRANSPARENT),
             null, Shader.TileMode.CLAMP
         )
         canvas.drawCircle(centerX, centerY, radius * 2.2f, glowPaint)
         glowPaint.shader = null
 
-        paint.shader = LinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius, cyan, purple, Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius, Color.rgb(71, 83, 72), Color.rgb(32, 42, 36), Shader.TileMode.CLAMP)
         canvas.drawCircle(centerX, centerY, radius, paint)
         paint.shader = null
         paint.color = Color.BLACK
         canvas.drawCircle(centerX, centerY, radius * 0.82f, paint)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 2f
-        paint.color = Color.argb(210, 70, 225, 255)
+        paint.color = Color.argb(180, 196, 180, 137)
         canvas.drawCircle(centerX, centerY, radius * 0.92f, paint)
         paint.style = Paint.Style.FILL
 
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        textPaint.textSize = radius * 0.27f
+        textPaint.textSize = radius * 0.8f
         textPaint.color = Color.WHITE
-        canvas.drawText("FORTUNE", centerX, centerY + radius * 0.06f, textPaint)
-        textPaint.textSize = radius * 0.095f
+        canvas.drawText("F", centerX, centerY + radius * 0.25f, textPaint)
+        textPaint.textSize = radius * 0.10f
         textPaint.color = cyan
-        canvas.drawText("PERSONAL SYSTEM", centerX, centerY + radius * 0.36f, textPaint)
+        canvas.drawText("YOUR SPACE", centerX, centerY + radius * 0.55f, textPaint)
     }
 
     private fun drawClock(canvas: Canvas) {
@@ -226,7 +283,7 @@ class FortuneView(context: Context) : View(context) {
         textPaint.textSize = 11f
         textPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         textPaint.color = Color.argb(200, 210, 210, 230)
-        canvas.drawText("FORTUNE  /  READY", 24f, 48f, textPaint)
+        canvas.drawText("FORTUNEOS", 24f, 48f, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
         canvas.drawText("$batteryLevel% BATTERY", widthF - 24f, 48f, textPaint)
         paint.color = cyan
@@ -238,13 +295,13 @@ class FortuneView(context: Context) : View(context) {
         val spacing = widthF / 6f
         for (i in shortcuts.indices) {
             val x = spacing * (i + 1)
-            glowPaint.color = Color.argb(28, 70, 225, 255)
+            glowPaint.color = Color.argb(18, 196, 180, 137)
             canvas.drawCircle(x, y, 32f, glowPaint)
-            paint.color = Color.rgb(18, 16, 30)
+            paint.color = Color.rgb(35, 43, 38)
             canvas.drawCircle(x, y, 27f, paint)
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = 1.3f
-            paint.color = Color.argb(175, 70, 170, 210)
+            paint.color = Color.argb(175, 120, 139, 119)
             canvas.drawCircle(x, y, 27f, paint)
             paint.style = Paint.Style.FILL
             textPaint.textAlign = Paint.Align.CENTER
@@ -256,7 +313,7 @@ class FortuneView(context: Context) : View(context) {
     }
 
     private fun drawGesture(canvas: Canvas) {
-        paint.color = Color.argb(125, 70, 170, 220)
+        paint.color = Color.argb(150, 196, 180, 137)
         canvas.drawRoundRect(centerX - 32f, heightF - 42f, centerX + 32f, heightF - 38f, 4f, 4f, paint)
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.textSize = 9f
@@ -292,7 +349,7 @@ class FortuneView(context: Context) : View(context) {
                         if (index in shortcuts.indices) (context as? MainActivity)?.onShortcut(index)
                     } else if (event.y in (centerY - 100f)..(centerY + 100f) &&
                         event.x in (centerX - 100f)..(centerX + 100f)) {
-                        Toast.makeText(context, "FortuneOS está listo. Abre tus aplicaciones desde abajo.", Toast.LENGTH_SHORT).show()
+                        (context as? MainActivity)?.openPersonalSpace()
                     }
                 }
                 performClick()
