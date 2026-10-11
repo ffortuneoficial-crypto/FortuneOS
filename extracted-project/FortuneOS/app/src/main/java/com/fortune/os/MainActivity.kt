@@ -80,7 +80,12 @@ class MainActivity : AppCompatActivity() {
             val p = it.split("|", limit = 2)
             if (p.size == 2 && p[0].isNotBlank() && p[1].startsWith("https://")) projects[p[0]] = p[1]
         }
-        val options = projects.keys.toList() + listOf("＋ Añadir proyecto o enlace", "⌁ Abrir mis archivos")
+        val lastProject = prefs.getString("last_project", null)
+        val projectNames = projects.keys.sortedWith(
+            compareBy<String> { if (it == lastProject) 0 else 1 }
+                .thenBy { it.lowercase(Locale.getDefault()) }
+        )
+        val options = projectNames + listOf("＋ Añadir proyecto o enlace", "⌁ Abrir mis archivos")
         AlertDialog.Builder(this).setTitle("Tu espacio")
             .setItems(options.toTypedArray()) { _, which ->
                 when (which) {
