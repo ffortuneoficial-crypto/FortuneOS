@@ -26,30 +26,41 @@ jobs:
           unzip -q FortuneOS.zip -d extracted
           echo "=== ZIP CONTENTS ==="
           unzip -l FortuneOS.zip
-          echo "=== EXTRACTED FILES (first 250) ==="
-          find extracted -maxdepth 6 -type f | sort | head -250
-          ROOT="$(find extracted -type f \\( -name gradlew -o -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts \\) -print | head -1 | xargs -r dirname)"
-          if [ -z "${ROOT:-}" ]; then
-            echo "No Gradle project files found in FortuneOS.zip." | tee build-diagnosis.txt
+          ROOT="$(dirname "$(find extracted -type f -name settings.gradle.kts -print -quit)")"
+          if [ -z "${ROOT:-}" ] || [ "$ROOT" = "." ]; then
+            echo "Could not locate settings.gradle.kts in FortuneOS.zip." | tee build-diagnosis.txt
             exit 2
           fi
-          while [ "$ROOT" != "." ] && [ ! -f "$ROOT/settings.gradle" ] && [ ! -f "$ROOT/settings.gradle.kts" ]; do
-            PARENT="$(dirname "$ROOT")"
-            [ "$PARENT" = "$ROOT" ] && break
-            ROOT="$PARENT"
-          done
-          echo "Project root candidate: $ROOT" | tee build-diagnosis.txt
+          echo "Project root: $ROOT" | tee build-diagnosis.txt
           echo "project_root=$ROOT" >> "$GITHUB_OUTPUT"
+          echo "=== Root build.gradle.kts ==="
+          cat "$ROOT/build.gradle.kts" || true
+          echo "=== App build.gradle.kts ==="
+          cat "$ROOT/app/build.gradle.kts" || true
+          echo "=== settings.gradle.kts ==="
+          cat "$ROOT/settings.gradle.kts" || true
+          AGP_VERSION="$(grep 'com.android.application' "$ROOT/build.gradle.kts" "$ROOT/settings.gradle.kts" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 || true)"
+          if [ -z "$AGP_VERSION" ]; then
+            AGP_VERSION="$(grep -R 'com.android.application' "$ROOT" --include='*.gradle.kts' --include='*.gradle' | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 || true)"
+          fi
+          if [ -z "$AGP_VERSION" ]; then
+            GRADLE_VERSION="8.13"
+            echo "Could not automatically detect Android Gradle Plugin version; trying Gradle $GRADLE_VERSION."
+          else
+            AGP_MAJOR="${AGP_VERSION%%.*}"
+            if [ "$AGP_MAJOR" -ge 9 ]; then
+              GRADLE_VERSION="9.1.0"
+            else
+              GRADLE_VERSION="8.13"
+            fi
+            echo "Detected Android Gradle Plugin $AGP_VERSION; selected Gradle $GRADLE_VERSION."
+          fi
+          echo "gradle_version=$GRADLE_VERSION" >> "$GITHUB_OUTPUT"
           if [ -f "$ROOT/gradlew" ]; then
             chmod +x "$ROOT/gradlew"
-            echo "Gradle wrapper found."
+            echo "Gradle wrapper found." | tee -a build-diagnosis.txt
           else
-            echo "No Gradle wrapper found." | tee -a build-diagnosis.txt
-          fi
-          if [ -f "$ROOT/settings.gradle" ] || [ -f "$ROOT/settings.gradle.kts" ]; then
-            echo "Gradle settings file found." | tee -a build-diagnosis.txt
-          else
-            echo "No Gradle settings file found at candidate root." | tee -a build-diagnosis.txt
+            echo "No Gradle wrapper found; using installed Gradle." | tee -a build-diagnosis.txt
           fi
 
       - name: Set up JDK 17
@@ -60,9 +71,10 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ steps.inspect.outputs.gradle_version }}
 
       - name: Build debug APK
-        id: build
         shell: bash
         run: |
           set -uo pipefail
@@ -70,11 +82,8 @@ jobs:
           cd "$ROOT"
           if [ -f "./gradlew" ]; then
             ./gradlew --no-daemon assembleDebug --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
-          elif [ -f "settings.gradle" ] || [ -f "settings.gradle.kts" ]; then
-            gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
           else
-            echo "Cannot build: no Gradle project root or wrapper." | tee "$GITHUB_WORKSPACE/build.log"
-            exit 2
+            gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
           fi
 
       - name: Collect APKs and diagnostics
