@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,6 +22,21 @@ import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
     private lateinit var fortuneView: FortuneView
+
+    private val filePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: SecurityException) {
+                // Some document providers do not offer persistent grants.
+            }
+            val prefs = getSharedPreferences("fortuneos", MODE_PRIVATE)
+            val saved = prefs.getString("saved_files", "").orEmpty().lines()
+                .filter { it.isNotBlank() && it != uri.toString() }
+            prefs.edit().putString("saved_files", (saved + uri.toString()).joinToString("\\n")).apply()
+            Toast.makeText(this, "Archivo guardado en Tu espacio", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,14 +101,20 @@ class MainActivity : AppCompatActivity() {
             compareBy<String> { if (it == lastProject) 0 else 1 }
                 .thenBy { it.lowercase(Locale.getDefault()) }
         )
-        val options = projectNames + listOf("＋ Añadir proyecto o enlace", "⌁ Abrir mis archivos")
+        val savedFiles = prefs.getString("saved_files", "").orEmpty().lines().filter { it.isNotBlank() }
+        val options = projectNames + listOf(
+            "＋ Añadir proyecto o enlace",
+            "＋ Guardar un archivo del teléfono",
+            "▤ Mis archivos guardados (${savedFiles.size})"
+        )
         AlertDialog.Builder(this).setTitle("Tu espacio")
             .setItems(options.toTypedArray()) { _, which ->
                 when (which) {
-                    projects.size -> addProjectLink()
-                    projects.size + 1 -> openFiles()
+                    projectNames.size -> addProjectLink()
+                    projectNames.size + 1 -> openFiles()
+                    projectNames.size + 2 -> openSavedFiles()
                     else -> {
-                        val name = options[which]
+                        val name = projectNames[which]
                         prefs.edit().putString("last_project", name).apply()
                         launchIntent(Intent(Intent.ACTION_VIEW, Uri.parse(projects[name])), "No se pudo abrir el enlace.")
                     }
@@ -123,15 +145,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openFiles() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
+        filePicker.launch(arrayOf("*/*"))
+    }
+
+    private fun openSavedFiles() {
+        val prefs = getSharedPreferences("fortuneos", MODE_PRIVATE)
+        val files = prefs.getString("saved_files", "").orEmpty().lines().filter { it.isNotBlank() }
+        if (files.isEmpty()) {
+            Toast.makeText(this, "Todavía no has guardado archivos.", Toast.LENGTH_SHORT).show()
+            return
         }
-        try {
-            startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, "No se encontró un selector de archivos.", Toast.LENGTH_SHORT).show()
+        val labels = files.mapIndexed { index, value ->
+            val uri = Uri.parse(value)
+            val rawName = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')
+            "${index + 1}. ${rawName?.takeIf { it.isNotBlank() } ?: "Archivo guardado"}"
         }
+        AlertDialog.Builder(this).setTitle("Mis archivos")
+            .setItems(labels.toTypedArray()) { _, which ->
+                val uri = Uri.parse(files[which])
+                launchIntent(Intent(Intent.ACTION_VIEW).setDataAndType(uri, contentResolver.getType(uri) ?: "*/*")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "No se pudo abrir el archivo.")
+            }
+            .setNeutralButton("Añadir archivo") { _, _ -> openFiles() }
+            .setNegativeButton("Cerrar", null).show()
     }
 
     private fun showAppDrawer() {
